@@ -47,48 +47,48 @@
 #include "orwl_config.h"
 #include "eeprom_simulator.h"
 
-#define mainCENTRAL_LINK_COUNT      1                               /**< Number of central links used by the application.
-								        When changing this number remember to adjust the RAM settings*/
-#define mainPERIPHERAL_LINK_COUNT   0                               /**< Number of peripheral links used by the application. When changing
-								         this number remember to adjust the RAM settings*/
+#define mainCENTRAL_LINK_COUNT      1      /**< Number of central links used by the application.
+					          When changing this number remember to adjust the RAM settings*/
+#define mainPERIPHERAL_LINK_COUNT   0      /**< Number of peripheral links used by the application. When changing
+					          this number remember to adjust the RAM settings*/
 #ifdef DEBUG_VIA_UART
-#define mainUART_TX_BUF_SIZE        256                             /**< UART TX buffer size. */
-#define mainUART_RX_BUF_SIZE        256                             /**< UART RX buffer size. */
+#define mainUART_TX_BUF_SIZE        (256)    /**< UART TX buffer size. */
+#define mainUART_RX_BUF_SIZE        (256)    /**< UART RX buffer size. */
 #endif /* DEBUG_VIA_UART */
-#define mainAPP_TIMER_PRESCALER     327	           	            /**< Value of the RTC1 PRESCALER register - 10ms TICK */
-#define mainAPP_TIMER_OP_QUEUE_SIZE 3                               /**< Size of timer operation queues. */
+#define mainAPP_TIMER_PRESCALER     (327)    /**< Value of the RTC1 PRESCALER register - 10ms TICK */
+#define mainAPP_TIMER_OP_QUEUE_SIZE (3)                 /**< Size of timer operation queues. */
 #define mainBROADCAST_INTERVAL_TIMER_DEFAULT	APP_TIMER_TICKS((suc_ble_ipcBROADCAST_REFRESH_IN_SEC*1000),\
 								 mainAPP_TIMER_PRESCALER)
-#define mainSCAN_INTERVAL           0x06E0			    /**< Determines scan interval in units of 0.625 millisecond. 0x6E0=1.1 sec */
-#define mainSCAN_WINDOW             0x0640                          /**< Determines scan window in units of 0.625 millisecond. 0x0640 =1sec*/
-#define mainSCAN_ACTIVE             0 				    /**< If 1, performe active scanning (scan requests). 0 - NON Active */
-#define mainSCAN_SELECTIVE          0                               /**< If 1, ignore unknown devices (non whitelisted). */
-#define mainSCAN_TIMEOUT            0x0000                          /**< Timout when scanning. 0x0000 disables timeout. */
+#define mainSCAN_INTERVAL           (0x06E0) /**< Determines scan interval in units of 0.625 millisecond. 0x6E0=1.1 sec */
+#define mainSCAN_WINDOW             (0x0640) /**< Determines scan window in units of 0.625 millisecond. 0x0640 =1sec*/
+#define mainSCAN_ACTIVE             (0)      /**< If 1, performe active scanning (scan requests). 0 - NON Active */
+#define mainSCAN_SELECTIVE          (0)      /**< If 1, ignore unknown devices (non whitelisted). */
+#define mainSCAN_TIMEOUT            (0x0000) /**< Timout when scanning. 0x0000 disables timeout. */
 
 /***
  * Global variables
  */
-uint8_t            ucm_eeprom_sim_mem[ suc_ble_ipcEEPROM_SIMUL_SIZE ] ;		/**< for simulating EEPROM Memory for I2C Bus Com. with SuC */
-suc_ble_ipc_t      *px_suc_ble_ipc_strut ;				        /**< IPC pointer to Simulated EEPROM */
-bool               xm_data_rx_from_mcu ;					/**< Flag for indicating SuC has given the broadcast data to be observed*/
-uint8_t            ucm_state = orwl_configIDLE;					/**< BLE state i.e, orwl_configIDLE or OBSERVING */
-uint8_t            ucm_sub_state = orwl_configPROXIMITY_LOCK;			/**< BLE sub state i.e, LOCK or UNLOCK */
+uint8_t            ucMEepromSimMem[ suc_ble_ipcEEPROM_SIMUL_SIZE ] ;	/**< for simulating EEPROM Memory for I2C Bus Com. with SuC */
+sucBleIpc_t      *pxSucBleIpcStrut ;				/**< IPC pointer to Simulated EEPROM */
+bool               xMDataRxFromMcu ;				/**< Flag for indicating SuC has given the broadcast data to be observed*/
+uint8_t            ucState = orwl_configIDLE;				/**< BLE state i.e, orwl_configIDLE or OBSERVING */
+uint8_t            ucSubState = orwl_configPROXIMITY_LOCK;		/**< BLE sub state i.e, LOCK or UNLOCK */
 #ifdef DEBUG_VIA_SWDIO_RTT
-char               debug_rtt_buff[ 256 ];					/* Buffer is required for the system to support the RTT.*/
+char               debug_rtt_buff[ 256 ];				/* Buffer is required for the system to support the RTT.*/
 #endif /* DEBUG_VIA_SWDIO_RTT */
 
 /**
  * Static variables
  */
-uint8_t		   ucm_ble_range_info = suc_ble_ipcBLE_OUT_RANGE;
-static uint8_t     ucindex_scan ;
+uint8_t		   ucMBleRangeInfo = suc_ble_ipcBLE_OUT_RANGE;
+static uint8_t     ucIndexScan ;
 
-APP_TIMER_DEF( xm_broadcast_timer_id );
+APP_TIMER_DEF( xMBroadcastTimerId );
 
 /**
  * @brief Parameters used when scanning.
  */
-static const ble_gap_scan_params_t xm_scan_params =
+static const ble_gap_scan_params_t xMScanParams =
   {
     .active      = mainSCAN_ACTIVE,
     .selective   = mainSCAN_SELECTIVE,
@@ -107,11 +107,11 @@ static const ble_gap_scan_params_t xm_scan_params =
  * @warning On assert from the SoftDevice, the system can only recover on reset.
  *
  * @param line_num     Line number of the failing ASSERT call.
- * @param pfile_name  File name of the failing ASSERT call.
+ * @param pFileName  File name of the failing ASSERT call.
  */
-void vMainAssertNrfCallback(uint16_t usline_num, const uint8_t * pfile_name)
+void vMainAssertNrfCallback(uint16_t usLineNum, const uint8_t * pFileName)
 {
-    app_error_handler(0xDEADBEEF, usline_num, pfile_name);
+    app_error_handler(0xDEADBEEF, usLineNum, pFileName);
 }
 /*----------------------------------------------------------------------------*/
 /**
@@ -126,11 +126,11 @@ void vMainAssertNrfCallback(uint16_t usline_num, const uint8_t * pfile_name)
  */
 static void prvMainScanStart(void)
 {
-    uint32_t ulerr_code;
-    ulerr_code = sd_ble_gap_scan_start(&xm_scan_params);
-    APP_ERROR_CHECK(ulerr_code);
-    ulerr_code = bsp_indication_set(BSP_INDICATE_SCANNING);
-    APP_ERROR_CHECK(ulerr_code);
+    uint32_t ulErrCode;
+    ulErrCode = sd_ble_gap_scan_start(&xMScanParams);
+    APP_ERROR_CHECK(ulErrCode);
+    ulErrCode = bsp_indication_set(BSP_INDICATE_SCANNING);
+    APP_ERROR_CHECK(ulErrCode);
 }
 /*----------------------------------------------------------------------------*/
 
@@ -149,11 +149,11 @@ void vMainGpioConfig()
  *
  *  This Function set or reset the GPIO output pin based on the Ble sub state
  *
- *  @param		ucm_sub_state  BLE sub state
+ *  @param		ucSubState  BLE sub state
  */
-void vMainToggleGpio(uint8_t ucm_sub_state)
+void vMainToggleGpio(uint8_t ucSubState)
 {
-    switch( ucm_sub_state )
+    switch( ucSubState )
     {
         case orwl_configPROXIMITY_LOCK :
             nrf_gpio_pin_set(orwl_configGPIO_OUTPUT_PIN);
@@ -176,10 +176,10 @@ void vMainToggleGpio(uint8_t ucm_sub_state)
  */
 bool xMainKeyfobProximityStatusGet()
 {
-    uint8_t uctest_block[ suc_ble_ipcSCAN_RSP_STATUS_HISTORY ];
-    memset( uctest_block, 0x00, suc_ble_ipcSCAN_RSP_STATUS_HISTORY );
-    if(memcmp( px_suc_ble_ipc_strut->xmemory_read.ucscan_status,
-	       uctest_block, suc_ble_ipcSCAN_RSP_STATUS_HISTORY ) == 0)
+    uint8_t ucTestBlock[ suc_ble_ipcSCAN_RSP_STATUS_HISTORY ];
+    memset( ucTestBlock, 0x00, suc_ble_ipcSCAN_RSP_STATUS_HISTORY );
+    if(memcmp( pxSucBleIpcStrut->xMemoryRead.ucScanStatus,
+	       ucTestBlock, suc_ble_ipcSCAN_RSP_STATUS_HISTORY ) == 0)
     {
         return false;
     }
@@ -204,30 +204,30 @@ void vMainBroadcastCheckHandler( void *temp )
     }
     else
     {
-        px_suc_ble_ipc_strut->xmemory_read.ucscan_status[ucindex_scan++] = ucm_ble_range_info ;
+        pxSucBleIpcStrut->xMemoryRead.ucScanStatus[ucIndexScan++] = ucMBleRangeInfo ;
         /* Always assume that the KeyFOB is not in range for next interval
 	   If KeyFOB data is received, then packet received event will change the status */
-	ucm_ble_range_info = suc_ble_ipcBLE_OUT_RANGE ;
+	ucMBleRangeInfo = suc_ble_ipcBLE_OUT_RANGE ;
 	/*Schedule timer for updating the status */
-	app_timer_start( xm_broadcast_timer_id, mainBROADCAST_INTERVAL_TIMER_DEFAULT, NULL);
+	app_timer_start( xMBroadcastTimerId, mainBROADCAST_INTERVAL_TIMER_DEFAULT, NULL);
 	debug_print( LEVEL_DEBUG,"In Timer Handler- Status Index: %d RangeStatus: %d\r\n",
-		     ucindex_scan,px_suc_ble_ipc_strut->xmemory_read.ucscan_status[ ucindex_scan-1 ] );
-	if( ucindex_scan >= suc_ble_ipcSCAN_RSP_STATUS_HISTORY )
+		     ucIndexScan, pxSucBleIpcStrut->xMemoryRead.ucScanStatus[ ucIndexScan-1 ] );
+	if( ucIndexScan >= suc_ble_ipcSCAN_RSP_STATUS_HISTORY )
 	{
-	    ucindex_scan = 0 ;
+	    ucIndexScan = 0 ;
 	}
-	bool gpio_status = xMainKeyfobProximityStatusGet();
-	if( gpio_status )
+	bool xGpioStatus = xMainKeyfobProximityStatusGet();
+	if( xGpioStatus )
 	{
-	    ucm_sub_state = orwl_configPROXIMITY_UNLOCK;
+	    ucSubState = orwl_configPROXIMITY_UNLOCK;
 	}
 	else
 	{
-	    ucm_sub_state = orwl_configPROXIMITY_LOCK;
+	    ucSubState = orwl_configPROXIMITY_LOCK;
 	}
     }
     /* keep track if the device is active */
-    px_suc_ble_ipc_strut->xmemory_read.ulheart_beat_info++;
+    pxSucBleIpcStrut->xMemoryRead.ulHeartBeatInfo++;
 }
 /*----------------------------------------------------------------------------*/
 
@@ -240,17 +240,17 @@ void vMainBroadcastCheckHandler( void *temp )
  *
  * @param ble_adv_report  Pointer to the data structure for advertisement/broadcast packet
  */
-void vMainUpdateStatusToSuc( const ble_gap_evt_adv_report_t * pxble_adv_report )
+void vMainUpdateStatusToSuc( const ble_gap_evt_adv_report_t * pxBleAdvReport )
 {
     /* Check if the broadcast is same as what need to be monitored by SuC */
-    if( memcmp( pxble_adv_report->data,
-		px_suc_ble_ipc_strut->xmemory_read.ucdata,
+    if( memcmp( pxBleAdvReport->data,
+		pxSucBleIpcStrut->xMemoryRead.ucData,
 		suc_ble_ipcBLE_ADV_CUR_SIZE )==0 )
     {
         /* At present, only broadcast data is verified. This will be extended to check RSSI Range
            when feature integration takes place */
         debug_print( LEVEL_DEBUG,"Received Packet for Set Broadcast Data\r\n" ) ;
-        ucm_ble_range_info = suc_ble_ipcBLE_IN_RANGE ;
+        ucMBleRangeInfo = suc_ble_ipcBLE_IN_RANGE ;
     }
 }
 /*----------------------------------------------------------------------------*/
@@ -262,15 +262,15 @@ void vMainUpdateStatusToSuc( const ble_gap_evt_adv_report_t * pxble_adv_report )
  *          the requested keyFOB is in range or not. Except for Broadcast/Advertisment report, we
  *          are not interested for ORWL implementation
  *
- * @param   pble_evt  Bluetooth stack event.
+ * @param   pBleEvt  Bluetooth stack event.
  */
-static void ble_evt_handler( ble_evt_t * pble_evt )
+static void ble_evt_handler( ble_evt_t * pBleEvt )
 {
-    const ble_gap_evt_t * p_gap_evt = &pble_evt->evt.gap_evt;
-    switch ( pble_evt->header.evt_id )
+    const ble_gap_evt_t * pGapEvt = &pBleEvt->evt.gap_evt;
+    switch ( pBleEvt->header.evt_id )
     {
         case BLE_GAP_EVT_ADV_REPORT:
-            vMainUpdateStatusToSuc( &p_gap_evt->params.adv_report );
+            vMainUpdateStatusToSuc( &pGapEvt->params.adv_report );
             break;
 	default:
             break;
@@ -285,18 +285,18 @@ static void ble_evt_handler( ble_evt_t * pble_evt )
 static void vMainBleStackInit( void )
 {
     uint32_t err_code;
-    nrf_clock_lf_cfg_t clock_lf_cfg = NRF_CLOCK_LFCLKSRC;
+    nrf_clock_lf_cfg_t xClockLfCfg = NRF_CLOCK_LFCLKSRC;
     /*Initialize the SoftDevice handler module. */
-    SOFTDEVICE_HANDLER_INIT( &clock_lf_cfg, NULL );
-    ble_enable_params_t xble_enable_params;
+    SOFTDEVICE_HANDLER_INIT( &xClockLfCfg, NULL );
+    ble_enable_params_t xBleEnableParams;
     err_code = softdevice_enable_get_default_config( mainCENTRAL_LINK_COUNT,
                                                      mainPERIPHERAL_LINK_COUNT,
-                                                     &xble_enable_params );
+                                                     &xBleEnableParams );
     APP_ERROR_CHECK( err_code );
     /*Check the ram settings against the used number of links*/
     CHECK_RAM_START_ADDR( mainCENTRAL_LINK_COUNT,mainPERIPHERAL_LINK_COUNT );
     /* Enable BLE stack.*/
-    err_code = softdevice_enable( &xble_enable_params );
+    err_code = softdevice_enable( &xBleEnableParams );
     APP_ERROR_CHECK( err_code );
     /* Register with the SoftDevice handler module for BLE events.*/
     err_code = softdevice_ble_evt_handler_set( ble_evt_handler );
@@ -305,15 +305,15 @@ static void vMainBleStackInit( void )
 /*----------------------------------------------------------------------------*/
 
 #ifdef DEBUG_VIA_UART
-void vMainUartErrorHandle( app_uart_evt_t * p_event )
+void vMainUartErrorHandle( app_uart_evt_t * pEvent )
 {
-    if ( p_event->evt_type == APP_UART_COMMUNICATION_ERROR )
+    if ( pEvent->evt_type == APP_UART_COMMUNICATION_ERROR )
     {
-        APP_ERROR_HANDLER( p_event->data.error_communication );
+        APP_ERROR_HANDLER( pEvent->data.error_communication );
     }
-    else if ( p_event->evt_type == APP_UART_FIFO_ERROR )
+    else if ( pEvent->evt_type == APP_UART_FIFO_ERROR )
     {
-        APP_ERROR_HANDLER( p_event->data.error_code );
+        APP_ERROR_HANDLER( pEvent->data.error_code );
     }
 }
 /*----------------------------------------------------------------------------*/
@@ -322,8 +322,8 @@ void vMainUartErrorHandle( app_uart_evt_t * p_event )
  */
 static void uart_init( void )
 {
-    uint32_t err_code;
-    const app_uart_comm_params_t comm_params =
+    uint32_t ulErrCode;
+    const app_uart_comm_params_t xCommParams =
     {
        .rx_pin_no    = RX_PIN_NUMBER,
        .tx_pin_no    = TX_PIN_NUMBER,
@@ -333,13 +333,13 @@ static void uart_init( void )
        .use_parity   = false,
        .baud_rate    = UART_BAUDRATE_BAUDRATE_Baud115200
     };
-    APP_UART_FIFO_INIT( &comm_params,
+    APP_UART_FIFO_INIT( &xCommParams,
                         mainUART_RX_BUF_SIZE,
                         mainUART_TX_BUF_SIZE,
                         vMainUartErrorHandle,
                         APP_IRQ_PRIORITY_LOW,
-                        err_code );
-    APP_ERROR_CHECK( err_code );
+                        ulErrCode );
+    APP_ERROR_CHECK( ulErrCode );
 }
 /*----------------------------------------------------------------------------*/
 
@@ -349,56 +349,56 @@ static void uart_init( void )
  */
 static void prvMainPowerManage( void )
 {
-    uint32_t ulerr_code = sd_app_evt_wait();
-    APP_ERROR_CHECK( ulerr_code );
+    uint32_t ulErrCode = sd_app_evt_wait();
+    APP_ERROR_CHECK( ulErrCode );
 }
 /*----------------------------------------------------------------------------*/
 /** @} */
 
 int main(void)
 {
-    ret_code_t xerr_code;
+    ret_code_t xErrCode;
     APP_TIMER_INIT(mainAPP_TIMER_PRESCALER, mainAPP_TIMER_OP_QUEUE_SIZE, NULL);
     /* Create timer for checking the status index update for every
        3 seconds. Which is the broadcast interval. */
-    xerr_code = app_timer_create( &xm_broadcast_timer_id,
+    xErrCode = app_timer_create( &xMBroadcastTimerId,
                                   APP_TIMER_MODE_SINGLE_SHOT,
                                   vMainBroadcastCheckHandler );
-    APP_ERROR_CHECK(xerr_code);
+    APP_ERROR_CHECK(xErrCode);
 #ifdef DEBUG_VIA_UART
     uart_init();
 #endif /* DEBUG_VIA_UART */
     /* Initialize the SuC-BLE IPC data structure */
-    px_suc_ble_ipc_strut = (suc_ble_ipc_t *)ucm_eeprom_sim_mem ;
+    pxSucBleIpcStrut = (sucBleIpc_t *)ucMEepromSimMem ;
     vMainBleStackInit();
     vMainGpioConfig();
-    xerr_code = xEeprom_simulatorInit();
-    APP_ERROR_CHECK(xerr_code);
+    xErrCode = xEeprom_simulatorInit();
+    APP_ERROR_CHECK(xErrCode);
     /* Start application timers. */
-    xerr_code = app_timer_start( xm_broadcast_timer_id,
+    xErrCode = app_timer_start( xMBroadcastTimerId,
 				 mainBROADCAST_INTERVAL_TIMER_DEFAULT,
 				 NULL );
-    APP_ERROR_CHECK( xerr_code );
+    APP_ERROR_CHECK( xErrCode );
     while(1)
     {
-        switch ( ucm_state )
+        switch ( ucState )
         {
 	    case orwl_configIDLE :
-	        ucm_sub_state = orwl_configPROXIMITY_LOCK;
-		vMainToggleGpio( ucm_sub_state );
-		if( xm_data_rx_from_mcu )
+	        ucSubState = orwl_configPROXIMITY_LOCK;
+		vMainToggleGpio( ucSubState );
+		if( xMDataRxFromMcu )
 		{
-		    /* Start scanning for peripherals and initiate connection 
+		    /* Start scanning for peripherals and initiate connection
 		       with devices */
-		    ucm_state = orwl_configOBSERVATION;
+		    ucState = orwl_configOBSERVATION;
 		    prvMainScanStart();
 		}
 		else
 		{
-		    memset( px_suc_ble_ipc_strut->xmemory_read.ucscan_status,
+		    memset( pxSucBleIpcStrut->xMemoryRead.ucScanStatus,
 		   	    suc_ble_ipcBLE_OUT_RANGE,
 			    suc_ble_ipcSCAN_RSP_STATUS_HISTORY );
-		    memset( px_suc_ble_ipc_strut->xmemory_read.ucdata,
+		    memset( pxSucBleIpcStrut->xMemoryRead.ucData,
 		    	    0xff, suc_ble_ipcBLE_ADV_MAX_SIZE );
 	#ifdef USE_TERMINAL_LOG
 	    debug_print( LEVEL_INFO,"state orwl_configIDLE\r\n\r\n" );
@@ -409,19 +409,19 @@ int main(void)
 	  #ifdef USE_TERMINAL_LOG
 	        debug_print( LEVEL_INFO,"state orwl_configOBSERVATION\r\n\r\n" );
 	  #endif
-	        switch ( ucm_sub_state )
+	        switch ( ucSubState )
 		{
 		    case orwl_configPROXIMITY_LOCK :
 			#ifdef USE_TERMINAL_LOG
 			debug_print( LEVEL_INFO,"state orwl_configPROXIMITY_LOCK\r\n\r\n" );
 			#endif
-            vMainToggleGpio( ucm_sub_state );
+            vMainToggleGpio( ucSubState );
 		        break;
 	            case orwl_configPROXIMITY_UNLOCK :
 		        #ifdef USE_TERMINAL_LOG
 		        debug_print( LEVEL_INFO,"state orwl_configPROXIMITY_UNLOCK\r\n\r\n" );
 		        #endif
-		        vMainToggleGpio( ucm_sub_state );
+		        vMainToggleGpio( ucSubState );
 		        break;
 	            default :
 		        break;

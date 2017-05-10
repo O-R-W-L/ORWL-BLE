@@ -1,0 +1,1 @@
+Add 'ORWL_CENTRAL' Preprocessor macro to project settings before biulding to configure it for ORWL

@@ -37,45 +37,47 @@
 #include "SEGGER_RTT.h"
 
 /* Configure the debug level for trouble shooting the application */
-#define LEVEL_DEBUG 			1
-#define LEVEL_INFO			2
-#define LEVEL_ERR			4
+#define LEVEL_DEBUG 			(1)
+#define LEVEL_INFO			(2)
+#define LEVEL_ERR			(4)
 /* Define the debugging print level */
-#define DEBUG_LEVEL			(LEVEL_DEBUG|LEVEL_INFO|LEVEL_ERR) 
+#define DEBUG_LEVEL			(LEVEL_DEBUG|LEVEL_INFO|LEVEL_ERR)
 /* Provide debug interface over UART or SWDIO Debug Interface */
-#define DEBUG_VIA_UART			1	/*  This will intialize debugging over UART Interface
+#ifndef ORWL_CENTRAL
+#define DEBUG_VIA_UART		/*  This will intialize debugging over UART Interface
 						    Useful on Eval Kit - Port */
-#define DEBUG_VIA_SWDIO_RTT		1
+#endif
+#define DEBUG_VIA_SWDIO_RTT		(1)
 #ifdef DEBUG_VIA_SWDIO_RTT
 extern char debug_rtt_buff[ 256 ];
 #endif /* DEBUG_VIA_SWDIO_RTT */
 
 #if defined(DEBUG_VIA_SWDIO_RTT) && defined(DEBUG_VIA_UART) && (DEBUG_LEVEL!=0)
-#define debug_print(level,...)  		do{													\
-											if(level&DEBUG_LEVEL)							\
-											{												\
-												printf(__VA_ARGS__) ;						\
-												sprintf(debug_rtt_buff,__VA_ARGS__); 		\
-												SEGGER_RTT_WriteString(0, debug_rtt_buff);	\
-											}												\
-									  }while(0) 
+#define debug_print(level,...)  		do{						\
+							if(level&DEBUG_LEVEL)		\
+							{				\
+							printf(__VA_ARGS__) ;		\
+							sprintf(debug_rtt_buff,__VA_ARGS__); \
+							SEGGER_RTT_WriteString(0, debug_rtt_buff);\
+							}					\
+						  }while(0)
 #elif defined(DEBUG_VIA_SWDIO_RTT)&& (DEBUG_LEVEL!=0)
-#define debug_print(level,...)  		do{													\
-											if(level&DEBUG_LEVEL)							\
-											{												\
-												sprintf(debug_rtt_buff,__VA_ARGS__); 		\
-												SEGGER_RTT_WriteString(0, debug_rtt_buff);	\
-											}												\
+#define debug_print(level,...)  		do{						\
+							if(level&DEBUG_LEVEL)			\
+							{					\
+							sprintf(debug_rtt_buff,__VA_ARGS__); 	\
+							SEGGER_RTT_WriteString(0, debug_rtt_buff);\
+											}	\
 									  }while(0)
 #elif defined(DEBUG_VIA_UART)&& (DEBUG_LEVEL!=0)
-#define debug_print(level, a,...)  		do{													\
-											if(level&DEBUG_LEVEL)							\
-											{												\
-												printf(__VA_ARGS__) ;						\
-											}												\
+#define debug_print(level, a,...)  		do{						\
+							if(level&DEBUG_LEVEL)			\
+									{			\
+									printf(__VA_ARGS__) ;	\
+											}	\
 									  }while(0)
 #else
-#define debug_print(level, a,...)  		do{													\
-										  }while(0) 
+#define debug_print(level, a,...)  		do{						\
+						  }while(0)
 #endif /* defined(DEBUG_VIA_SWDIO_RTT) && defined(DEBUG_VIA_UART)	*/
 #endif /*__ORWL_DEBUG_H__	*/

@@ -45,9 +45,9 @@
   *   This function reads the device information (device mac id and s/w version
   *   info) from the ble stack and stores it to the BLE IPC memory
   *
-  *   @param xdev_info    Structure to store mac id and S/W version info
+  *   @param xDevInfo    Structure to store mac id and S/W version info
   */
-void vEeprom_simulatorReadDeviceInfo( ble_device_info_t* xdev_info );
+void vEeprom_simulatorReadDeviceInfo( bleDeviceInfo_t* xDevInfo );
 
  /**
   * @ingroup twi_master_with_twis_slave_example

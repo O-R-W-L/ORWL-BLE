@@ -48,19 +48,29 @@
   * @{
   */
 
+/*
+ * Global variables
+ */
+/* for simulating EEPROM Memory RAM */
+extern uint8_t	 	ucState;
+extern uint8_t	 	ucSubState;
+extern uint8_t	 	ucMEepromSimMem[ suc_ble_ipcEEPROM_SIMUL_SIZE ];
+extern sucBleIpc_t 	*pxSucBleIpcStrut;
+extern bool		xMDataRxFromMcu;
+
 /**
  * @brief Current memory address
  *
  * Memory pointer for any operation that would be processed on memory array.
  */
-static size_t xmaddr = 0;
+static size_t xgAddr = 0;
 
 /**
  * @brief Receive buffer
  *
  * Receiving buffer has to contain address and 8 bytes of data
  */
-static uint8_t ucm_rxbuff[suc_ble_ipcBUFF_SIZE_I2C+1];
+static uint8_t ucRxBuff[suc_ble_ipcBUFF_SIZE_I2C+1];
 
 /**
  * @brief Internal error flag
@@ -68,14 +78,14 @@ static uint8_t ucm_rxbuff[suc_ble_ipcBUFF_SIZE_I2C+1];
  * This flag is set if any communication error is detected.
  * It would be cleared by calling the @ref eeprom_simulator_error_get function.
  */
-static bool merror_flag = FALSE;
+static bool xMErrorFlag = FALSE;
 
 /**
  * @brief TWIS instance
  *
  * TWIS driver instance used by this EEPROM simulator
  */
-static const nrf_drv_twis_t xm_twis = NRF_DRV_TWIS_INSTANCE(EEPROM_SIM_TWIS_INST);
+static const nrf_drv_twis_t xMTwis = NRF_DRV_TWIS_INSTANCE(EEPROM_SIM_TWIS_INST);
 
 /** @} */
 /**
@@ -90,30 +100,30 @@ static const nrf_drv_twis_t xm_twis = NRF_DRV_TWIS_INSTANCE(EEPROM_SIM_TWIS_INST
  *
  * Sets address for the next operation on the memory array
  *
- * @param xaddr Address to set
+ * @param xAddr Address to set
  */
-static void prvEeprom_simulator_setAddr(size_t xaddr)
+static void prvEeprom_simulator_setAddr(size_t xAddr)
 {
-    xmaddr = xaddr;
+    xgAddr = xAddr;
 }
 /*----------------------------------------------------------------------------*/
 
 /**
  *@brief Perform write operation on memory array
  *
- * Write single byte into memory array using @ref xmaddr as a write pointer.
+ * Write single byte into memory array using @ref xgAddr as a write pointer.
  *
  * @param data Data to be written
  */
-static void prvEeprom_simulatorWrite(uint8_t ucdata)
+static void prvEeprom_simulatorWrite(uint8_t ucData)
 {
  /* Starting address is calculated from the offset of the
     eeprom from write only section */
-    if(xmaddr >= sizeof(ucm_eeprom_sim_mem))
+    if(xgAddr >= sizeof(ucMEepromSimMem))
      {
-          xmaddr = suc_ble_ipcIPC_WRITE_MEM_START;
+          xgAddr = suc_ble_ipcIPC_WRITE_MEM_START;
      }
-    ucm_eeprom_sim_mem[xmaddr++] = ucdata;
+    ucMEepromSimMem[xgAddr++] = ucData;
 }
 /*----------------------------------------------------------------------------*/
 
@@ -123,11 +133,11 @@ static void prvEeprom_simulatorWrite(uint8_t ucdata)
  * Function sets pointers for TWIS to receive data
  * WRITE command does not write directly to memory array.
  * Temporary receive buffer is used.
- * @sa ucm_rxbuff
+ * @sa ucRxBuff
  */
 static void prvEeprom_simulatorWriteBegin(void)
 {
-    nrf_drv_twis_rx_prepare(&xm_twis, ucm_rxbuff, sizeof(ucm_rxbuff));
+    nrf_drv_twis_rx_prepare(&xMTwis, ucRxBuff, sizeof(ucRxBuff));
 }
 /*----------------------------------------------------------------------------*/
 
@@ -137,25 +147,25 @@ static void prvEeprom_simulatorWriteBegin(void)
  * Function should be called when write command is finished.
  * It sets memory pointer and write all received data to memory array
  */
-static void prvEeprom_simulatorWriteEnd(size_t xcnt)
+static void prvEeprom_simulatorWriteEnd(size_t xCnt)
 {
-    if(xcnt > 0)
+    if(xCnt > 0)
     {
-        debug_print(LEVEL_DEBUG,"Received count for write:%d\n\r",xcnt) ;
-        size_t xn;
-        prvEeprom_simulator_setAddr(ucm_rxbuff[0]);
-        for(xn=1; xn<xcnt; ++xn)
+        debug_print(LEVEL_DEBUG,"Received count for write:%d\n\r",xCnt) ;
+        size_t xNum;
+        prvEeprom_simulator_setAddr(ucRxBuff[0]);
+        for(xNum=1; xNum<xCnt; ++xNum)
         {
-            prvEeprom_simulatorWrite(ucm_rxbuff[xn]);
+            prvEeprom_simulatorWrite(ucRxBuff[xNum]);
         }
-        if(xcnt >= 2)
+        if(xCnt >= 2)
         {
             /* indicates that update of broadcast data is there.
                we need to update the broadcast data. */
-	    memcpy(px_suc_ble_ipc_strut->xmemory_read.ucdata,
-		   px_suc_ble_ipc_strut->xmemory_write.ucdata,
+	    memcpy(pxSucBleIpcStrut->xMemoryRead.ucData,
+		   pxSucBleIpcStrut->xMemoryWrite.ucData,
 		   suc_ble_ipcBLE_ADV_MAX_SIZE) ;
-            xm_data_rx_from_mcu = TRUE ;
+            xMDataRxFromMcu = TRUE ;
         }
     }
 }
@@ -169,16 +179,16 @@ static void prvEeprom_simulatorWriteEnd(size_t xcnt)
  */
 static void prvEeprom_simulatorReadBegin(void)
 {
-    if(xmaddr >= sizeof(suc_ble_ipc_read_t))
+    if(xgAddr >= sizeof(sucBleIpcRead_t))
     {
-        xmaddr = suc_ble_ipcIPC_READ_MEM_START;
+        xgAddr = suc_ble_ipcIPC_READ_MEM_START;
     }
     /* Size of the memory is restricted to only readonly section of the Simulated
        Memory  */
-    nrf_drv_twis_tx_prepare(&xm_twis,
-                            ucm_eeprom_sim_mem+xmaddr,
+    nrf_drv_twis_tx_prepare(&xMTwis,
+                            ucMEepromSimMem+xgAddr,
 			                /*eeprom_simulatorREAD_BUF_SIZE*/
-                            sizeof(suc_ble_ipc_read_t)-xmaddr);
+                            sizeof(sucBleIpcRead_t)-xgAddr);
 }
 /*----------------------------------------------------------------------------*/
 
@@ -186,13 +196,13 @@ static void prvEeprom_simulatorReadBegin(void)
  * @brief Finalize READ command
  *
  * Function should be called when read command is finished.
- * It adjusts current xmaddr pointer.
+ * It adjusts current xgAddr pointer.
  *
  * @param cnt Number of bytes readed
  */
-static void prvEeprom_simulatorReadEnd(size_t xcnt)
+static void prvEeprom_simulatorReadEnd(size_t xCnt)
 {
-    xmaddr += xcnt;
+    xgAddr += xCnt;
 }
 /*----------------------------------------------------------------------------*/
 
@@ -201,32 +211,32 @@ static void prvEeprom_simulatorReadEnd(size_t xcnt)
  *
  *
  */
-static void prvEeprom_simulatorEventHandler(nrf_drv_twis_evt_t const * const pxevent)
+static void prvEeprom_simulatorEventHandler(nrf_drv_twis_evt_t const * const pxEvent)
 {
-    switch(pxevent->type)
+    switch(pxEvent->type)
     {
         case TWIS_EVT_READ_REQ:
-            if(pxevent->data.buf_req)
+            if(pxEvent->data.buf_req)
             {
                 prvEeprom_simulatorReadBegin();
             }
             break;
         case TWIS_EVT_READ_DONE:
-            prvEeprom_simulatorReadEnd(pxevent->data.tx_amount);
+            prvEeprom_simulatorReadEnd(pxEvent->data.tx_amount);
             break;
         case TWIS_EVT_WRITE_REQ:
-            if(pxevent->data.buf_req)
+            if(pxEvent->data.buf_req)
             {
                 prvEeprom_simulatorWriteBegin();
             }
             break;
         case TWIS_EVT_WRITE_DONE:
-            prvEeprom_simulatorWriteEnd(pxevent->data.rx_amount);
+            prvEeprom_simulatorWriteEnd(pxEvent->data.rx_amount);
             break;
         case TWIS_EVT_READ_ERROR:
         case TWIS_EVT_WRITE_ERROR:
         case TWIS_EVT_GENERAL_ERROR:
-            merror_flag = TRUE;
+            xMErrorFlag = TRUE;
             break;
         default:
             break;
@@ -239,22 +249,17 @@ static void prvEeprom_simulatorEventHandler(nrf_drv_twis_evt_t const * const pxe
  *  This function reads device information (device mac id, s/w version) from
  *  the ble stack and stores it to the BLE IPC memory
  *
- *  @param xdev_info    Structure to store mac id and S/W version info
+ *  @param xDevInfo    Structure to store mac id and S/W version info
  */
-void vEeprom_simulatorReadDeviceInfo( ble_device_info_t* xdev_info )
+void vEeprom_simulatorReadDeviceInfo( bleDeviceInfo_t* xDevInfo )
 {
-    uint32_t ulerr_code;
-    ulerr_code = sd_ble_version_get( &xdev_info->xble_version );
-    if( NRF_SUCCESS != ulerr_code )
+    uint32_t ulErrCode;
+    xDevInfo->ucBleSwMajor = orwl_configSW_MAJOR_NUMBER;
+    xDevInfo->ucBleSwMinor = orwl_configSW_MINOR_NUMBER;
+    ulErrCode = sd_ble_gap_address_get( &xDevInfo->xBleMacId );
+    if( NRF_SUCCESS != ulErrCode )
     {
-        debug_print( LEVEL_DEBUG,"err code version info : %d\n\r",ulerr_code ) ;
-        memset( xdev_info, 0xff, sizeof( ble_device_info_t ) );
-        return;
-    }
-    ulerr_code = sd_ble_gap_address_get( &xdev_info->xble_mac_id );
-    if( NRF_SUCCESS != ulerr_code )
-    {
-        memset( xdev_info, 0xff, sizeof(ble_device_info_t) );
+        memset( xDevInfo, 0xff, sizeof(bleDeviceInfo_t) );
         return;
     }
 }
@@ -264,8 +269,8 @@ void vEeprom_simulatorReadDeviceInfo( ble_device_info_t* xdev_info )
 /** @brief initialize eeprom_simulator module */
 ret_code_t xEeprom_simulatorInit(void)
 {
-    ret_code_t xret;
-    const nrf_drv_twis_config_t config =
+    ret_code_t xRet;
+    const nrf_drv_twis_config_t xConfig =
     {
         .addr               = {EEPROM_SIM_ADDR, 0},
         .scl                = EEPROM_SIM_SCL_S,
@@ -273,39 +278,39 @@ ret_code_t xEeprom_simulatorInit(void)
         .interrupt_priority = APP_IRQ_PRIORITY_HIGH
     };
     /* Initialize data with pattern */
-    xmaddr = 0;
+    xgAddr = 0;
     /* Init TWIS */
     do
     {
-        xret = nrf_drv_twis_init( &xm_twis, &config, prvEeprom_simulatorEventHandler );
-        if( NRF_SUCCESS != xret )
+        xRet = nrf_drv_twis_init( &xMTwis, &xConfig, prvEeprom_simulatorEventHandler );
+        if( NRF_SUCCESS != xRet )
         {
             break;
         }
-        nrf_drv_twis_enable( &xm_twis );
+        nrf_drv_twis_enable( &xMTwis );
     }while(0);
-    vEeprom_simulatorReadDeviceInfo( &px_suc_ble_ipc_strut->xmemory_read.xdevice_info );
-    return xret;
+    vEeprom_simulatorReadDeviceInfo( &pxSucBleIpcStrut->xMemoryRead.xDeviceInfo );
+    return xRet;
 }
 /*----------------------------------------------------------------------------*/
 
 /** @brief Function to return eeprom error status */
 uint8_t ucEeprom_simulatorErrorCheck( void )
 {
-    return merror_flag;
+    return xMErrorFlag;
 }
 /*----------------------------------------------------------------------------*/
 
 /** @brief Function to handle eeprom error Status */
 uint32_t ulEeprom_simulatorErrorGetAndClear( void )
 {
-    uint32_t ulret = nrf_drv_twis_error_get_and_clear( &xm_twis );
+    uint32_t ulRet = nrf_drv_twis_error_get_and_clear( &xMTwis );
     sd_ble_gap_scan_stop();
-    ucm_state = orwl_configIDLE;
-    ucm_sub_state = orwl_configPROXIMITY_LOCK;
-    xm_data_rx_from_mcu = FALSE;
-    merror_flag = FALSE;
-    return ulret;
+    ucState = orwl_configIDLE;
+    ucSubState = orwl_configPROXIMITY_LOCK;
+    xMDataRxFromMcu = FALSE;
+    xMErrorFlag = FALSE;
+    return ulRet;
 }
 /** @} */
 /*----------------------------------------------------------------------------*/
