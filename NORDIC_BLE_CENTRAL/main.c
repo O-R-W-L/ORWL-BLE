@@ -28,8 +28,10 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-============================================================================
  *
+============================================================================
+ * @version    0.1    13/06/2017     Viplav Roy    Added support for beacon
+ *                                                 application
  */
 
 /* #define USE_TERMINAL_LOG */
@@ -64,6 +66,15 @@
 #define mainSCAN_ACTIVE             (0)      /**< If 1, performe active scanning (scan requests). 0 - NON Active */
 #define mainSCAN_SELECTIVE          (0)      /**< If 1, ignore unknown devices (non whitelisted). */
 #define mainSCAN_TIMEOUT            (0x0000) /**< Timout when scanning. 0x0000 disables timeout. */
+#define mainBLE_UUID_SHIFT_SERVICE	(0xFEDF) /**< Shift UUID */
+#define mainUUID_COUNT							(0x01)
+#define mainBLE_UUID_TYPE_16_BIT_SERVICE 	BLE_UUID_TYPE_BLE
+/**< Time for which the device must be advertising in non-connectable mode (in seconds). 0 disables timeout. */
+#define mainAPP_CFG_NON_CONN_ADV_TIMEOUT    (0)
+/**< The advertising interval for non-connectable advertisement (100 ms). This value can vary between 100ms to 10.24s). */
+#define mainNON_CONNECTABLE_ADV_INTERVAL    MSEC_TO_UNITS(100, UNIT_0_625_MS)
+#define mainADVERTISING_RUNNING			(1)			/**< Advertising is going on */
+#define mainADVERTISING_NOT_RUNNING	(0)			/**< Advertising is off */
 
 /***
  * Global variables
@@ -82,6 +93,8 @@ char               debug_rtt_buff[ 256 ];				/* Buffer is required for the syste
  */
 uint8_t		   ucMBleRangeInfo = suc_ble_ipcBLE_OUT_RANGE;
 static uint8_t     ucIndexScan ;
+static ble_gap_adv_params_t xAdvParams;     /**< Parameters to be passed to the stack when starting advertising. */
+static ble_uuid_t  xAdvUuids[] = {{mainBLE_UUID_SHIFT_SERVICE, mainBLE_UUID_TYPE_16_BIT_SERVICE}};
 
 APP_TIMER_DEF( xMBroadcastTimerId );
 
@@ -97,6 +110,57 @@ static const ble_gap_scan_params_t xMScanParams =
     .window      = mainSCAN_WINDOW,
     .timeout     = mainSCAN_TIMEOUT
   };
+/*---------------------------------------------------------------------------*/
+
+/**@brief Function for initializing the Advertising functionality.
+ *
+ * Builds a structure to be passed to the stack when starting advertising
+ * Encodes the required advertising data and passes it to the stack.
+ *
+ */
+static void prvAdvertisingInit(void)
+{
+		uint32_t      ulErrCode;
+    ble_advdata_t xAdvdata;
+		ble_gap_conn_sec_mode_t xBleSecMode = {0};
+    uint8_t       ucFlags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+
+    /* Build and set advertising data. */
+    memset(&xAdvdata, 0, sizeof(xAdvdata));
+    xAdvdata.name_type             		= BLE_ADVDATA_FULL_NAME;
+		xAdvdata.flags                 		= ucFlags;
+		xAdvdata.include_ble_device_addr 	= true;
+		xAdvdata.uuids_complete.uuid_cnt 	= mainUUID_COUNT;
+		xAdvdata.uuids_complete.p_uuids 	= &(xAdvUuids[0]);
+		sd_ble_gap_device_name_set(&xBleSecMode,
+                     pxSucBleIpcStrut->xMemoryWrite.ucBeaconData,
+                     suc_ble_ipcBEACON_DATA_LEN);
+		ulErrCode = ble_advdata_set(&xAdvdata, NULL);
+    APP_ERROR_CHECK(ulErrCode);
+
+    /* Initialize advertising parameters (used when starting advertising).*/
+    memset(&xAdvParams, 0, sizeof(xAdvParams));
+    xAdvParams.type        = BLE_GAP_ADV_TYPE_ADV_NONCONN_IND;
+    xAdvParams.p_peer_addr = NULL;
+    xAdvParams.fp          = BLE_GAP_ADV_FP_ANY;
+    xAdvParams.interval    = mainNON_CONNECTABLE_ADV_INTERVAL;
+    xAdvParams.timeout     = mainAPP_CFG_NON_CONN_ADV_TIMEOUT;
+}
+/*---------------------------------------------------------------------------*/
+
+/**@brief Function for starting advertising.
+ */
+static void prvAdvertisingStart(void)
+{
+    uint32_t ulErrCode;
+
+    ulErrCode = sd_ble_gap_adv_start(&xAdvParams);
+    APP_ERROR_CHECK(ulErrCode);
+
+    ulErrCode = bsp_indication_set(BSP_INDICATE_ADVERTISING);
+    APP_ERROR_CHECK(ulErrCode);
+}
+/*---------------------------------------------------------------------------*/
 
 /**@brief Function for asserts in the SoftDevice.
  *
@@ -357,6 +421,7 @@ static void prvMainPowerManage( void )
 
 int main(void)
 {
+    uint8_t ucAdvStatus = 0;
     ret_code_t xErrCode;
     APP_TIMER_INIT(mainAPP_TIMER_PRESCALER, mainAPP_TIMER_OP_QUEUE_SIZE, NULL);
     /* Create timer for checking the status index update for every
@@ -364,6 +429,9 @@ int main(void)
     xErrCode = app_timer_create( &xMBroadcastTimerId,
                                   APP_TIMER_MODE_SINGLE_SHOT,
                                   vMainBroadcastCheckHandler );
+    APP_ERROR_CHECK(xErrCode);
+		xErrCode = bsp_init(BSP_INIT_LED,
+                      APP_TIMER_TICKS(100, mainAPP_TIMER_PRESCALER), NULL);
     APP_ERROR_CHECK(xErrCode);
 #ifdef DEBUG_VIA_UART
     uart_init();
@@ -379,6 +447,9 @@ int main(void)
 				 mainBROADCAST_INTERVAL_TIMER_DEFAULT,
 				 NULL );
     APP_ERROR_CHECK( xErrCode );
+    /* Clearing the Beacon command */
+    pxSucBleIpcStrut->xMemoryRead.ucBeaconStatus =
+					suc_ble_ipcBEACON_STOP_CMD;
     while(1)
     {
         switch ( ucState )
@@ -430,6 +501,21 @@ int main(void)
 	    default :
 	        break;
         }
+				if( pxSucBleIpcStrut->xMemoryRead.ucBeaconStatus ==
+					suc_ble_ipcBEACON_START_CMD)
+				{
+					if( ucAdvStatus ==  mainADVERTISING_NOT_RUNNING )
+					{
+						prvAdvertisingInit();
+						prvAdvertisingStart();
+						ucAdvStatus = mainADVERTISING_RUNNING;
+					}
+				}
+				else
+				{
+					sd_ble_gap_adv_stop();
+					ucAdvStatus = mainADVERTISING_NOT_RUNNING;
+				}
 	prvMainPowerManage();
 #ifdef USE_TERMINAL_LOG
 	nrf_delay_ms( 999 );

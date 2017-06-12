@@ -28,9 +28,13 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-============================================================================
  *
+============================================================================
+ * @version    0.1    13/06/2017    Viplav Roy    Shared EEPROM changes
+ *                                                required by beacon
+ *                                                application
  */
+
 #include <string.h>
 #include "config.h"
 #include "eeprom_simulator.h"
@@ -160,12 +164,37 @@ static void prvEeprom_simulatorWriteEnd(size_t xCnt)
         }
         if(xCnt >= 2)
         {
+          if( ucRxBuff[1] == suc_ble_ipcADV_DATA_LEN )
+          {
             /* indicates that update of broadcast data is there.
                we need to update the broadcast data. */
-	    memcpy(pxSucBleIpcStrut->xMemoryRead.ucData,
-		   pxSucBleIpcStrut->xMemoryWrite.ucData,
-		   suc_ble_ipcBLE_ADV_MAX_SIZE) ;
+            memcpy(pxSucBleIpcStrut->xMemoryRead.ucData,
+                  pxSucBleIpcStrut->xMemoryWrite.ucData,
+                  suc_ble_ipcBLE_ADV_MAX_SIZE) ;
             xMDataRxFromMcu = TRUE ;
+          }
+          else
+          {
+            /* Check for beacon start/stop command in the received
+            buffer and update the status. If both are not there then
+            data received will be beacon name */
+            if( ucRxBuff[1] == suc_ble_ipcBEACON_START_CMD)
+            {
+              pxSucBleIpcStrut->xMemoryRead.ucBeaconStatus =
+              pxSucBleIpcStrut->xMemoryWrite.ucBeaconStatus;
+            }
+            else if(ucRxBuff[1] == suc_ble_ipcBEACON_STOP_CMD )
+            {
+              pxSucBleIpcStrut->xMemoryRead.ucBeaconStatus =
+              pxSucBleIpcStrut->xMemoryWrite.ucBeaconStatus;
+            }
+            else
+            {
+              memcpy(pxSucBleIpcStrut->xMemoryRead.ucBeaconData,
+                    pxSucBleIpcStrut->xMemoryWrite.ucBeaconData,
+              suc_ble_ipcBEACON_DATA_LEN);
+            }
+          }
         }
     }
 }

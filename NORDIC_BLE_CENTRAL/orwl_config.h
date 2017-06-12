@@ -42,7 +42,7 @@
 #include "suc_ble_ipc.h"
 
 /* Number can go upto 255 */
-#define orwl_configSW_MAJOR_NUMBER	(1)
+#define orwl_configSW_MAJOR_NUMBER	(2)
 #define orwl_configSW_MINOR_NUMBER 	(0)
 #define TRUE 				(1)
 #define FALSE 				(0)
