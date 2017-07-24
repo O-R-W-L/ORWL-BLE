@@ -31,8 +31,11 @@
 	*
 ============================================================================
 	* @version    0.1    13/06/2017    Viplav Roy    Updated EEPROM memory usage
-  *                                                to support beacon
-  *                                                application
+	*                                                to support beacon
+	*                                                application
+	*             0.2    24/07/2017    Viplav Roy    Updated the BLE advertisement
+	*                                                comparing size from 6 to 30
+	*                                                byte
 	*/
 
 /* IPC Between SuC and Nordic BLE Observer for KeyFOB Proximity
@@ -112,7 +115,7 @@ NOTE: SuC has to write on the write only region. Read only region will get
 #define suc_ble_ipcEEPROM_SIMUL_SIZE		(0x80)		/**< Simulation of EEPROM RAM SIZE Which is used for comm. between SUC and BLE */
 #define	suc_ble_ipcSCAN_RSP_STATUS_HISTORY	(0x03)		/**< 3-Scan status for the device */
 #define suc_ble_ipcBLE_ADV_MAX_SIZE             (0x1F)		/**< 31 bytes max adv data */
-#define suc_ble_ipcBLE_ADV_CUR_SIZE             (0x06)		/**< 30 current size of advertisement used */
+#define suc_ble_ipcBLE_ADV_CUR_SIZE             (0x1E)		/**< 30 current size of advertisement used */
 #define suc_ble_ipcADDR_BLE_SW_VERSION		(0x29)
 #define suc_ble_ipcADDR_BLE_MAC_ID              (0x22)
 #define suc_ble_ipcBLE_MAC_ADDR_SIZE		(0x6)
